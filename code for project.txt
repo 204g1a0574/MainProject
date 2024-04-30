@@ -1,0 +1,158 @@
+import pandas as pd
+from flask import Flask,render_template,request
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import os
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score,precision_score,recall_score,classification_report
+import pygal
+
+app = Flask(_name_)
+
+app.config['upload folder'] = 'uploads'
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/loaddata',methods = ['POST','GET'])
+def load_data():
+    if request.method == 'POST':
+        file = request.files['file']
+        filetype = os.path.splitext(file.filename)[1]
+        print(filetype)
+        if filetype == '.csv':
+            path = os.path.join(app.config['upload folder'],file.filename)
+            file.save(path)
+            print(path)
+            return render_template('load data.html',msg = 'success')
+        else:
+            return render_template('load data.html',msg = 'invalid')
+
+    return render_template('load data.html')
+
+@app.route('/viewdata')
+def view_data():
+
+    global df
+    file = os.listdir(app.config['upload folder'])
+    path = os.path.join(app.config['upload folder'],file[0])
+    df = pd.read_csv(path)
+    print(df)
+    return render_template('view data.html',col_name = df.columns,row_val = list(df[:1000].values.tolist()))
+
+
+
+
+@app.route('/model',methods = ["POST","GET"])
+def model():
+    if request.method == "POST":
+        global x_train,y_train,x_test,y_test
+        global score1,score11,score111,score2,score22,score222
+        global score3,score33,score333,score4,score44,score444
+        model = int(request.form['selected'])
+        print(model)
+        test = int(request.form['testsize'])
+        testsize = test/100
+        data = df
+        print(data)
+        cat = data.select_dtypes(include= 'object')
+        num = data.select_dtypes(exclude = 'object')
+        le = LabelEncoder()
+        cat_enc = cat.apply(le.fit_transform)
+        data1 = pd.concat([cat_enc,num],axis = 1)
+        print(data1)
+        X = data1.drop(['user_id','class'],axis = 1)
+        y = data1['class']
+        x_train,x_test,y_train,y_test = train_test_split(X,y,test_size=testsize,random_state=10)
+        if model == 1:
+            model1 = xgb.XGBClassifier()
+            model1.fit(x_train,y_train)
+            pred1 = model1.predict(x_test)
+            score1 = accuracy_score(y_test,pred1)
+            score11 = precision_score(y_test,pred1)
+            score111 = recall_score(y_test,pred1)
+            return render_template('model.html',msg = 'accuracy',acc =score1,rec = score111,pre = score11,selected = 'XGBOOST Classifier')
+        elif model == 2:
+            model2 = RandomForestClassifier()
+            model2.fit(x_train,y_train)
+            pred2 = model2.predict(x_test)
+            score2 = accuracy_score(y_test,pred2)
+            score22 = precision_score(y_test,pred2)
+            score222 = recall_score(y_test,pred2)
+            return render_template('model.html',msg = 'accuracy',acc =score2,rec = score222,pre = score22,selected = ' Random Forest Classifier')
+        elif model == 3:
+            model3 = KNeighborsClassifier()
+            model3.fit(x_train,y_train)
+            pred3 = model3.predict(x_test)
+            score3 = accuracy_score(y_test,pred3)
+            score33 = precision_score(y_test,pred3)
+            score333 = recall_score(y_test,pred3)
+            return render_template('model.html',msg = 'accuracy',acc =score3,rec = score333,pre = score33,selected = 'K Nearest Neighbors Classifier')
+        elif model == 4:
+            model4 = DecisionTreeClassifier()
+            model4.fit(x_train,y_train)
+            pred4 = model4.predict(x_test)
+            score4 = accuracy_score(y_test,pred4)
+            score44 = precision_score(y_test,pred4)
+            score444 = recall_score(y_test,pred4)
+            return render_template('model.html',msg = 'accuracy',acc =score4,rec = score444,pre = score44,selected = 'Decisison Tree Classifier')
+    return render_template('model.html')
+
+
+@app.route('/prediction',methods = ["POST","GET"])
+def prediction():
+    if request.method == "POST":
+        a = int(request.form['a'])
+        b = int(request.form['b'])
+        c = int(request.form['c'])
+        d = int(request.form['d'])
+        e = int(request.form['e'])
+        f = int(request.form['f'])
+        g = int(request.form['g'])
+        h = int(request.form['h'])
+        i = float(request.form['i'])
+        val = [int(a),int(b),int(c),int(d),int(e),int(f),int(g),int(h),float(i)]
+        model2 = RandomForestClassifier()
+        model2.fit(x_train, y_train)
+        # le =LabelEncoder()
+        # ex = le.fit_transform(val)
+        print(val)
+        pred = model2.predict([val])
+        print(pred)
+        # results = le.inverse_transform(pred)
+        # print(results)
+
+        return render_template('prediction.html',msg = 'success',result = pred)
+    return render_template('prediction.html')
+
+@app.route('/graphs',methods = ['POST',"GET"])
+def graphs():
+    # line_chart = pygal.bar()
+    print('jhdbhsgd')
+    line_chart = pygal.Bar()
+    line_chart.x_labels= ['XGBoost','Random Forest','KNEAREST NEIGHBORS','DECISION TREE']
+    print('jdjkfdf')
+    line_chart.add('Accuracy' ,[score1,score2,score3,score4])
+    print('1')
+    line_chart.add('Precision' ,[score11,score22,score33,score44])
+    print('2')
+    line_chart.add('Recall' ,[score111,score222,score333,score444])
+    print('3')
+    graph_data = line_chart.render()
+    print(graph_data)
+    print(type(graph_data))
+    return render_template('graphs.html',graph_data = graph_data)
+
+
+
+
+
+if _name_ == '_main_':
+    app.run(debug=True)
